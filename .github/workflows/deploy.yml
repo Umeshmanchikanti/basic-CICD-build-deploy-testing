@@ -3,97 +3,46 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - main  # Trigger workflow on pushes to the main branch
+      - main
 
 jobs:
-  # Step 1: Build Job
   build:
     runs-on: ubuntu-latest
     steps:
-      # Check out the repository code
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Set up Node.js
       - name: Set Up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      # Check for package-lock.json
+      - name: Check for package-lock.json
+        id: check_lockfile
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "Lockfile exists."
+            echo "lockfile=true" >> $GITHUB_ENV
+          else
+            echo "No lockfile found."
+            echo "lockfile=false" >> $GITHUB_ENV
+          fi
+
       # Install dependencies
       - name: Install Dependencies
-        run: npm install
+        run: |
+          if [ "$lockfile" = "true" ]; then
+            npm ci
+          else
+            npm install
+          fi
 
-      # Run tests
+      # Run Tests
       - name: Run Tests
         run: npm test
 
-      # Build the project
+      # Build the Project
       - name: Build the Project
         run: npm run build
-
-      # Upload build artifacts
-      - name: Save Build Artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: build
-          path: ./dist  # Replace with your build directory
-
-  # Step 2: Publish to npm (optional)
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && contains(github.ref, 'refs/heads/main')
-    steps:
-      # Check out the repository code
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      # Set up Node.js for npm publishing
-      - name: Set Up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org/
-
-      # Install dependencies
-      - name: Install Dependencies
-        run: npm install
-
-      # Publish to npm
-      - name: Publish to npm
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  # Step 3: Deploy to Server
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      # Check out the repository code
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      # Download build artifacts from the build job
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: build
-          path: ./dist  # Replace with your build directory
-
-      # Set up SSH for deployment
-      - name: Set Up SSH
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H your-server.com >> ~/.ssh/known_hosts
-
-      # Deploy build to the production server
-      - name: Deploy to Production Server
-        run: |
-          scp -r ./dist/* user@your-server:/path/to/deployment/folder
-          ssh user@your-server "cd /path/to/deployment/folder && npm install && pm2 restart app"
 
