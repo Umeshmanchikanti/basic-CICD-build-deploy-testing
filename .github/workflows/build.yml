@@ -27,5 +27,35 @@ jobs:
       - run: npm ci
       - run: npm publish
         env:
-          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+          NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
+
+  deploy:
+    needs: publish-npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Install dependencies if required for deployment
+      - name: Install Dependencies
+        run: npm ci
+
+      # Example Deployment: Copy files to a production server using SSH
+      - name: Deploy to Production Server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          echo "${SSH_PRIVATE_KEY}" > private_key.pem
+          chmod 600 private_key.pem
+          scp -i private_key.pem -r ./dist/ user@your-server:/path/to/your/app
+          ssh -i private_key.pem user@your-server "cd /path/to/your/app && npm install && pm2 restart app"
+
+      # Clean up the SSH private key
+      - name: Clean Up
+        run: rm -f private_key.pem
 
